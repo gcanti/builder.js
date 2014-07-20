@@ -1,6 +1,22 @@
 # Deplo
 
-Mini build system for Node.js
+Mini Node.js build system for browser apps.
+
+## Pros
+
+- optimized for common tasks
+- manual dependencies tracking of js and less files leverage amazing speed of building
+
+## Cons
+
+- manual dependencies tracking is cumbersome
+- Yet Another Build System
+
+## Installation
+
+    npm install deplo
+
+## Usage
 
     var deplo = require('deplo');
     var builder = new deplo();
@@ -43,24 +59,25 @@ Mini build system for Node.js
     builder.build();
     builder.watch();
 
+## Api
+
 ### builder.use(transformer, paths)
 
-Usa la funzione `transformer(src) -> src` per trasformare il sorgente dei file indicati da `paths`.
+Uses function `transformer(src) -> src` to transform the sources of files listed by `paths`.
 
 ### builder.clean([dir])
 
-Elimina tutti i file della directory `dir`, utile per inizializzare il processo di build.
-Di default `dir` è `opts.target`.
+Removes all files in directory `dir`. Useful for initialize the building process. Default value for `dir` is `opts.target`.
 
 ### builder.build()
 
-Build totale.
+Build all.
 
 ### builder.watch()
 
-Monitora il filesystem per rifare un build incrementale.
+Watch filesystem and rebuild on files changes.
 
-# Copyright & License
+## Copyright & License
 
 Copyright (C) 2014 Giulio Canti - Released under the MIT License.
 
