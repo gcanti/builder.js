@@ -1,13 +1,14 @@
-# builder.js
+# Deplo
 
-Build system for Node.js
+Mini build system for Node.js
 
-    var builder = new (require('./builder').Builder)();
+    var deplo = require('deplo');
+    var builder = new deplo();
 
     // global options
     builder.opts = {
-        target: '../dist/',
-        src: '../src/',
+        target: 'build/',
+        src: 'src/',
         banner: 'banner',
         compress: false,
         less: {
@@ -15,14 +16,10 @@ Build system for Node.js
         }
     };
 
-    // transformers
-    builder.use(builder.transformers.ejs, ['js/templates.html']);
-
     builder.js({
         target: 'js/app.js',
         deps: [
-            'js/jsdk.js',
-            'js/templates.html',
+            'js/json2.js',
             'js/app.js'
         ]
     });
@@ -46,9 +43,9 @@ Build system for Node.js
     builder.build();
     builder.watch();
 
-### builder.use(plugin, paths)
+### builder.use(transformer, paths)
 
-Usa la funzione `plugin(src) -> src` per trasformare il sorgente dei file indicati da `paths`.
+Usa la funzione `transformer(src) -> src` per trasformare il sorgente dei file indicati da `paths`.
 
 ### builder.clean([dir])
 

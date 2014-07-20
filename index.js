@@ -1,15 +1,7 @@
-// dependencies
 var fs = require('fs');
-var less = less = require('less');
-var UglifyJS = require("uglify-js");
-var rts = require('./rts');
 var path = require('path');
-
-var assert = rts.assert;
-var Func = rts.Func;
-var List = rts.List;
-var Str = rts.Str;
-var Arr = rts.Arr;
+var less = require('less');
+var uglify = require("uglify-js");
 
 // --------
 // io utils
@@ -17,9 +9,10 @@ var Arr = rts.Arr;
 
 // restituisce il contenuto di un file come stringa
 function read(path) {
-    return fs.readFileSync(path).toString();
+    return fs.readFileSync(path, 'utf8').toString();
 }
 
+// TODO chiamrla ensure_dirs
 function dirs(path) {
     var dirs = path.split('/'),
         base_dir = '',
@@ -36,10 +29,10 @@ function dirs(path) {
     }
 }
 
-// scrive un file creando le directory intermedie se necessario
+// scrive un file creando le directories intermedie se necessario
 function write(path, data) {
     dirs(path);
-    fs.writeFileSync(path, data);
+    fs.writeFileSync(path, data, 'utf8');
 }
 
 // restituisce true se path è una directory
@@ -96,8 +89,8 @@ function Builder() {
 // associa una funzione di trasformazione al contenuto dei file sorgenti
 // indicati da paths
 Builder.prototype.use = function(transformer, paths) {
-    assert(Func.is(transformer), 'use(): transformer non è una funzione');
-    assert(List(Str).is(paths), 'use(): paths non è una lista di stringhe');
+    //assert(Func.is(transformer), 'use(): transformer non è una funzione');
+    //assert(List(Str).is(paths), 'use(): paths non è una lista di stringhe');
 
     var u = this._uses;
     paths.forEach(function (path) {
@@ -142,7 +135,7 @@ Builder.prototype._build_js = function(target) {
     config.deps = config.deps || [];
     var js = config.deps.map(this._read.bind(this)).join('\n');
     if (this._compress(config)) {
-        var result = UglifyJS.minify(js, { fromString: true, outSourceMap: this.opts.target + target + '.map' });
+        var result = uglify.minify(js, { fromString: true, outSourceMap: this.opts.target + target + '.map' });
         js = result.code;
         //write(this.opts.target + target + '.map', result.map);
     }
@@ -192,7 +185,7 @@ Builder.prototype._build_images = function(target) {
 };    
 
 Builder.prototype.clean = function (dir) {
-    assert(Str.is(dir || this.opts.target));
+    //assert(Str.is(dir || this.opts.target));
 
     remove_dir(dir || this.opts.target);
 };
@@ -265,26 +258,13 @@ Builder.prototype.watch = function() {
     watch_files(files.less, this._build_less.bind(this));
 };
 
-Builder.prototype.transformers = {
+Builder.transformers = {
     replace: function (replaces) {
         return function (src) {
             return replaces.reduce(function (src, replace) {
                 return src.replace(replace[0], replace[1]);
             }, src);
         };
-    },
-    ejs: function (src) {
-        var ts = src.split('...').map(function (t){
-            var index = t.indexOf('='),
-                name = t.substring(0, index).trim(),
-                src = t.substring(index + 1).split('\n').map(function (line) {
-                    line = line.replace(/\s+/gm, ' '); // compatto più spazi in uno solo, tanto in html vale solo uno spazio
-                    line = line.replace(/'/gm, '&apos;');
-                    return line;
-                }).join('').trim(); 
-            return "s('" + name + "', t('" + src + "'));\n";
-        }).join('');
-        return '// templates\n(function () {\nvar t = jsdk.template;\nvar s = t.store;\n' + ts + '})();\n';
     }
 };
 
