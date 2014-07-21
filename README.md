@@ -1,15 +1,13 @@
-# Deplo
-
-Mini Node.js build system for browser apps.
+deplo is a tiny build system aimed to be fast even on older machines.
 
 ## Pros
 
-- optimized for common tasks
-- manual dependencies tracking of js and less files leverage amazing speed of building
+- simple and clean api tailored for common tasks
+- manual dependency tracking of files provides amazing speed of building
 
 ## Cons
 
-- manual dependencies tracking is cumbersome
+- manual dependency tracking is cumbersome
 - Yet Another Build System
 
 ## Installation
@@ -18,20 +16,21 @@ Mini Node.js build system for browser apps.
 
 ## Usage
 
-    var deplo = require('deplo');
-    var builder = new deplo();
+    var Deplo = require('deplo');
+    var builder = new Deplo();
 
     // global options
     builder.opts = {
         target: 'build/',
         src: 'src/',
-        banner: 'banner',
+        banner: '/* MIT License */\n',
         compress: false,
         less: {
             paths: []
         }
     };
 
+    // build a js file
     builder.js({
         target: 'js/app.js',
         deps: [
@@ -40,6 +39,7 @@ Mini Node.js build system for browser apps.
         ]
     });
 
+    // build a css file
     builder.less({
         target: 'css/app.css',
         main: 'less/app.less',
@@ -55,15 +55,23 @@ Mini Node.js build system for browser apps.
     });
 
     // start
-    builder.clean();
-    builder.build();
+    builder.clean()
+    builder.build()
     builder.watch();
 
 ## Api
 
+### options
+
+- target: target dir
+- src: src dir
+- banner: optional banner placed on top of the files
+- compress: if `true` minify targets
+- less.paths: optional paths needed by less compiler
+
 ### builder.use(transformer, paths)
 
-Uses function `transformer(src) -> src` to transform the sources of files listed by `paths`.
+Use function `transformer(src) -> src` to transform the sources of files listed by `paths`.
 
 ### builder.clean([dir])
 
@@ -76,6 +84,12 @@ Build all.
 ### builder.watch()
 
 Watch filesystem and rebuild on files changes.
+
+## Example
+
+Run
+
+    node examples/build.js
 
 ## Copyright & License
 

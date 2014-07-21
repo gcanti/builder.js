@@ -188,6 +188,7 @@ Builder.prototype.clean = function (dir) {
     //assert(Str.is(dir || this.opts.target));
 
     remove_dir(dir || this.opts.target);
+    return this;
 };
 
 Builder.prototype.build = function() {
@@ -210,6 +211,7 @@ Builder.prototype.build = function() {
     for (target in this._configs.images) {
         this._build_images(target);
     }
+    return this;
 };
 
 Builder.prototype.watch = function() {

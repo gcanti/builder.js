@@ -1,7 +1,7 @@
 {
   "name": "deplo",
-  "version": "0.0.1",
-  "description": "Mini build system for Node.js",
+  "version": "0.0.3",
+  "description": "Mini Node.js build system for browser apps.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -19,5 +19,12 @@
   "dependencies": {
     "less": "*",
     "uglify-js": "*"
-  }
+  },
+  "tags": [ 
+    "build",
+    "system",
+    "make",
+    "tool",
+    "asset"
+  ]
 }
