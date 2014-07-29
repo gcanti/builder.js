@@ -1,3 +1,5 @@
+# deplo
+
 deplo is a tiny build system aimed to be fast even on older machines.
 
 ## Pros
@@ -53,6 +55,16 @@ deplo is a tiny build system aimed to be fast even on older machines.
             'less/dep2.less'
         ]
     });
+
+    // build a jsx file
+    builder.use(require('react-tools').transform, ['jsx/HelloMessage.jsx']);
+
+    builder.js({
+        target: 'js/HelloMessage.js',
+        deps: [
+            'jsx/HelloMessage.jsx'
+        ]
+    });    
 
     // start
     builder.clean()

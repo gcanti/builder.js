@@ -260,14 +260,4 @@ Builder.prototype.watch = function() {
     watch_files(files.less, this._build_less.bind(this));
 };
 
-Builder.transformers = {
-    replace: function (replaces) {
-        return function (src) {
-            return replaces.reduce(function (src, replace) {
-                return src.replace(replace[0], replace[1]);
-            }, src);
-        };
-    }
-};
-
 module.exports = Builder;

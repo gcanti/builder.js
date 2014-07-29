@@ -18,7 +18,8 @@
   "homepage": "https://github.com/gcanti/deplo",
   "dependencies": {
     "less": "*",
-    "uglify-js": "*"
+    "uglify-js": "*",
+    "react-tools": "*"
   },
   "tags": [ 
     "build",
