@@ -1,263 +1,475 @@
-var fs = require('fs');
+var assert = require('assert');
+var colors = require('colors');
+var debug = require('debug')('deplo');
+var async = require('async');
+var fs = require('fs-extra');
 var path = require('path');
 var less = require('less');
-var uglify = require("uglify-js");
+var uglifyJs = require("uglify-js");
+var t = require('tcomb');
 
-// --------
-// io utils
-// --------
+var assert = t.assert;
+var Str = t.Str;
+var Obj = t.Obj;
+var list = t.list;
 
-// restituisce il contenuto di un file come stringa
-function read(path) {
-    return fs.readFileSync(path, 'utf8').toString();
+function DirMixin (opts) {
+  assert(Obj.is(opts), 'bad opts');
+  assert(Str.is(opts.target_dir), 'bad target_dir');
+  assert(Str.is(opts.src_dir), 'bad src_dir');
+
+  this.target_dir = opts.target_dir;
+  this.src_dir = opts.src_dir;
 }
 
-// TODO chiamrla ensure_dirs
-function dirs(path) {
-    var dirs = path.split('/'),
-        base_dir = '',
-        dir;
+DirMixin.prototype = {
+  target: function(relative_path, env) {
+    assert(Str.is(relative_path), 'bad relative_path');
+    var target_dir = this.target_dir.replace(/%env/, env);
+    return path.join(target_dir, relative_path);
+  },
+  src: function(relative_path) {
+    assert(Str.is(relative_path), 'bad relative_path');
+    return path.join(this.src_dir, relative_path);
+  }
+};
 
-    while (dirs.length > 1) {
-        var dir = dirs.shift();
-        if (dir !== '.' && dir !== '..') {
-            if (!is_dir(base_dir + dir)) {
-                fs.mkdirSync(base_dir + dir);
-            }
-        }
-        base_dir += dir + '/';
-    }
+//
+// app
+//
+
+exports = module.exports = function (opts) {
+  return new App(opts);
+};
+
+function App (opts) {
+  opts = opts || {};
+  assert(Str.is(opts.target_dir), 'bad target_dir');
+
+  this.target_dir = opts.target_dir;
+  this._plugins = [];
 }
 
-// scrive un file creando le directories intermedie se necessario
-function write(path, data) {
-    dirs(path);
-    fs.writeFileSync(path, data, 'utf8');
-}
+App.prototype.clean = function() {
+  var dir = this.target_dir;
+  debug('removing target_dir %s...', dir);
+  fs.removeSync(dir);
+  debug('removing target_dir %s done.', dir);
+};
 
-// restituisce true se path è una directory
-function is_dir(path) {
-    return fs.existsSync(path) ? fs.statSync(path).isDirectory() : false;
-}
+App.prototype.build = function(env, callback) {
+  assert(Str.is(env), 'bad env');
+  assert(t.Func.is(callback), 'bad callback');
 
-// elimina tutti file e le sotto directory in una directory
-function remove_dir(dir) {
-    if( fs.existsSync(dir) ) {
-        fs.readdirSync(dir).forEach(function(file){
-            var base_dir = path.join(dir, file);
-            if (is_dir(base_dir)) { // recurse
-                remove_dir(base_dir);
-            } else { // delete file
-                fs.unlinkSync(base_dir);
-            }
-        });
-        fs.rmdirSync(dir);
+  timer.start();
+
+  env = env.split(',');
+  
+  var done = function (err) {
+    if (err) {
+      print('BUILD FAILED: %s.'.red, err);
+      return callback(err);
     }
-}
-
-function copy_dir(src, target) {
-    remove_dir(target);
-    dirs(target);
-    if (is_dir(src)) {
-        fs.mkdirSync(target);
-        fs.readdirSync(src).forEach(function(file) {
-            copy_dir(path.join(src, file), path.join(target, file));
-        });
-    } else {
-        fs.linkSync(src, target);
-    }
+    print('BUILD DONE in %s millis.'.green, timer.elapsed()); 
+    callback();
+  };
+  
+  this.clean();
+  async.map(env, function (env, callback) {
+    print('build() called with %s env...', env);
+    async.map(this._plugins, function (plugin, callback) {
+      plugin.build(env, callback);
+    }, callback);
+  }.bind(this), done);
 };
 
-function watch(file, callback) {
-    fs.watchFile(file, { persistent: true, interval: 100 }, function (curr, prev) {
-        if (curr.mtime !== prev.mtime) {
-            callback();
-        }
-    });
-}
+App.prototype.watch = function() {
+  var done = function () {
+    print('Watching all files done. Waiting for changes...');
+  };
 
-function Builder() {
-    this.opts = {};
-    this._uses = {};
-    this._configs = {
-        js: {},
-        less: {},
-        images: {}
-    };
-}
+  var watch = function (plugin, callback) {
+    plugin.watch(callback);
+  };
 
-// associa una funzione di trasformazione al contenuto dei file sorgenti
-// indicati da paths
-Builder.prototype.use = function(transformer, paths) {
-    //assert(Func.is(transformer), 'use(): transformer non è una funzione');
-    //assert(List(Str).is(paths), 'use(): paths non è una lista di stringhe');
-
-    var u = this._uses;
-    paths.forEach(function (path) {
-        u[path] = u[path] || [];
-        u[path].push(transformer);
-    });
+  async.map(this._plugins, watch, done);
 };
 
-Builder.prototype.js = function(config) {
-    this._configs.js[config.target] = config;
+App.prototype.use = function(plugin) {
+  assert(!this.hasOwnProperty(plugin.name), 'duplicate plugin name');
+  this._plugins.push(plugin);
+  this[plugin.name] = plugin.add.bind(plugin);
 };
 
-Builder.prototype.less = function(config) {
-    this._configs.less[config.target] = config;
+//
+// plugins
+//
+
+var JsPlugin = function (opts) {
+  DirMixin.call(this, opts);
+  assert(Str.is(opts.banner), 'bad banner');
+  assert(Obj.is(opts.compress), 'bad compress');
+  assert(Obj.is(opts.transformers), 'bad transformers');
+
+  this.banner = opts.banner;
+  this.compress = opts.compress;
+  this.transformers = this._transformers(opts.transformers);
+  this._targets = {};
+  this._watchee = {};
+  this._cache = {};
 };
 
-Builder.prototype.images = function(config) {
-    this._configs.images[config.target] = config;
-};
+t.mixin(JsPlugin.prototype, DirMixin.prototype);
 
-Builder.prototype._read = function(src) {
-    var src_path = this.opts.src + src;
-    var data = read(src_path);
-    return (this._uses[src] || []).reduce(function (data, transformer) {
-        return transformer(data);
-    }, data);
-};    
+t.mixin(JsPlugin.prototype, {
+  name: 'js',
+  add: function (target, deps) {
+    assert(Str.is(target), 'bad target');
+    assert(list(Str).is(deps), 'bad deps');
 
-Builder.prototype._banner = function(config) {
-    return config.banner || this.opts.banner || '';
-};
+    debug('adding js target %s', target);
 
-Builder.prototype._compress = function(config) {
-    return typeof config.compress !== 'undefined' ? config.compress : !!this.opts.compress;
-};
+    deps = deps.map(this.src.bind(this));
+    this._targets[target] = deps;
 
-Builder.prototype._build_js = function(target) {
+    var addTarget = function (dep) {
+      var targets = this._watchee[dep] = this._watchee[dep] || [];
+      targets.push(target);
+    }.bind(this);
 
-    console.log('Building ' + target);
-    
-    var config = this._configs.js[target];
-    config.deps = config.deps || [];
-    var js = config.deps.map(this._read.bind(this)).join('\n');
-    if (this._compress(config)) {
-        var result = uglify.minify(js, { fromString: true, outSourceMap: this.opts.target + target + '.map' });
-        js = result.code;
-        //write(this.opts.target + target + '.map', result.map);
-    }
-    js = this._banner(config) + js;
-    write(
-        this.opts.target + target, 
-        js
-    );
-};
+    deps.forEach(addTarget);
+  },
+  build: function (env, callback) {
+    debug('calling plugin %s.build (%s)...', this.name, env);
 
-Builder.prototype._build_less = function(target) {
-    
-    console.log('Building ' + target);
-    
-    var config = this._configs.less[target];
-    config.deps = config.deps || [];
-    var main = read(this.opts.src + config.main);
-    var parser = new (less.Parser)({ paths: config.paths || this.opts.less.paths || [] });
-    parser.parse(main, function (err, tree) {
-        if (err) {
-            throw err;
-        } else {
-            var css = tree.toCSS({ compress: this._compress(config) });
-            css = this._banner(config) + css;
-            write(
-                this.opts.target + target, 
-                css
-            );
-            if (config.images) {
-                console.log('Copying images ' + this.opts.src + config.images.src);
-                copy_dir(
-                    this.opts.src + config.images.src, 
-                    this.opts.target + config.images.target
-                );
-            }
-        }
-    }.bind(this));
-};
+    var build = function (target, callback) {
+      this._build(target, env, callback);
+    }.bind(this);
 
-Builder.prototype._build_images = function(target) {
-    var src = this._configs.images[target].src;
-    console.log('Copying images ' + this.opts.target + target);
-    copy_dir(
-        this.opts.src + src, 
-        this.opts.target + target
-    );
-};    
-
-Builder.prototype.clean = function (dir) {
-    //assert(Str.is(dir || this.opts.target));
-
-    remove_dir(dir || this.opts.target);
-    return this;
-};
-
-Builder.prototype.build = function() {
-    
-    console.log('**********');
-    console.log('  Build  ');
-    console.log('**********');
-    
-    this.opts.src = this.opts.src || '';
-    this.opts.target = this.opts.target || '';
-    this.opts.less = this.opts.less || {};
-
-    var target;
-    for (target in this._configs.js) {
-        this._build_js(target);
-    }
-    for (target in this._configs.less) {
-        this._build_less(target);
-    }
-    for (target in this._configs.images) {
-        this._build_images(target);
-    }
-    return this;
-};
-
-Builder.prototype.watch = function() {
-    
-    console.log('**********');
-    console.log('  Watch  ');
-    console.log('**********');
+    async.map(Object.keys(this._targets), build, callback);
+  },
+  watch: function (callback) {
+    debug('watching %s files...', this.name);
 
     var self = this;
-    var files = {
-        js: {},
-        less: {}
+
+    var rebuildTargets = function (dep) {
+      debug('%s changed, rebuilding all targets...', dep);
+
+      timer.start();
+
+      var done = function (err) {
+        if (err) {
+          debug('rebuilding %s targets FAILED: %s.'.red, dep, err);
+          return;
+        }
+        debug('rebuilding %s targets done in %s millis.'.green, dep, timer.elapsed());
+      };
+
+      // invalidate cache
+      delete self._cache[dep];
+      var targets = self._watchee[dep];
+      async.map(targets, function (target, callback) {
+        self._build(target, 'development', callback);
+      }, done);
     };
-    var watch_files = function (files, callback) {
-        Object.keys(files).forEach(function (src) {
-            watch(src, function () {
-                console.log(src + ' changed');
-                files[src].forEach(callback);
-            });
-        });
-    };
-    var target;
 
-    // ricavo la relazione dep -> target
-    for (target in this._configs.js) {
-        this._configs.js[target].deps.forEach(function (src) {
-            src = (self.opts.src || '') + src;
-            files.js[src] = files.js[src] || [];
-            files.js[src].push(target);
-        });
+    Object.keys(this._watchee).forEach(function (dep) {
+      watchFile(dep, rebuildTargets);
+    });
+
+    callback();
+  },
+  _transformers: function (transformers) {
+    var ret = {};
+    for (var k in transformers) {
+      if (transformers.hasOwnProperty(k)) {
+        ret[this.src(k)] = transformers[k];
+      }
     }
-    for (target in this._configs.less) {
-
-        var main = (self.opts.src || '') + this._configs.less[target].main;
-        files.less[main] = files.less[main] || [];
-        files.less[main].push(target);
-        
-        this._configs.less[target].deps.forEach(function (src) {
-            src = (self.opts.src || '') + src;
-            files.less[src] = files.less[src] || [];
-            files.less[src].push(target);
-        });
+    return ret;
+  },
+  _readFromCache: function (path, env, callback) {
+    var cache = this._cache[path];
+    var compress = this.compress[env];
+    if (cache) {
+      debug('%s file source found', path);
+      var source = cache.source;
+      if (compress) {
+        if (cache.compress) {
+          debug('%s compressed source found', path);
+          callback(null, cache.compress);
+        } else {
+          debug('compressing file %s...', path);
+          source = uglify(source);
+          if (typeof source !== 'string') return callback(source);
+          cache.compress = source;
+          debug('compressing file %s done.', path);
+          callback(null, source);
+        }
+        cache.compress
+      } else {
+        callback(null, source);
+      }
+    } else {
+      debug('%s file not found, reading source...', path);
+      var source = readFileSync(path);
+      // apply transformations
+      source = (this.transformers[path] || []).reduce(function (source, transformer) {
+        return transformer(source, env);
+      }, source);
+      var cache = this._cache[path] = {
+        source: source
+      };
+      debug('%s file cached.', path);
+      this._readFromCache(path, compress, callback);
     }
+  },
+  _build: function (target, env, callback) {
+    debug('building %s (%s)...', target, env);
 
-    watch_files(files.js, this._build_js.bind(this));
-    watch_files(files.less, this._build_less.bind(this));
+    var banner = this.banner;
+
+    var read = function (dep, callback) {
+      this._readFromCache(dep, env, callback);
+    }.bind(this);
+    
+    var write = function (err, deps) {
+      if (err) return callback(err);
+      var js = deps.join('\n');
+      // add banner
+      js = banner + js;
+      target = this.target(target, env);
+      debug('writing target %s...', target);
+      writeFile(target, js, callback);
+    }.bind(this);
+
+    async.map(this._targets[target], read, write);
+  }
+});
+
+JsPlugin.create = function (opts) {
+  return new JsPlugin(opts);
 };
 
-module.exports = Builder;
+var LessPlugin = function (opts) {
+  DirMixin.call(this, opts);
+  assert(Str.is(opts.banner), 'bad banner');
+  assert(Obj.is(opts.compress), 'bad compress');
+  assert(list(Str).is(opts.paths), 'bad paths');
+
+  this.banner = opts.banner;
+  this.compress = opts.compress;
+  this.paths = opts.paths;
+  this._targets = {};
+  this._watchee = {};
+};
+
+t.mixin(LessPlugin.prototype, DirMixin.prototype);
+
+t.mixin(LessPlugin.prototype, {
+  name: 'less',
+  add: function (target, config) {
+    assert(Str.is(target), 'bad target');
+    assert(Obj.is(config), 'bad config');
+    assert(Str.is(config.main), 'bad main');
+    assert(list(Str).is(config.deps), 'bad config.deps');
+    if (config.images) {
+      assert(Str.is(config.images.target_dir), 'bad config.images.target_dir');
+      assert(Str.is(config.images.src_dir), 'bad config.images.src_dir');
+    }
+
+    debug('adding less target %s', target);
+
+    var main = this.src(config.main);
+    var deps = config.deps.map(this.src.bind(this));
+    var images = config.images;
+    if (images) {
+      images = {
+        target_dir: images.target_dir,
+        src_dir: this.src(images.src_dir)
+      };
+    }
+
+    this._targets[target] = {
+      main: main,
+      deps: deps,
+      images: images
+    };
+
+    var addTarget = function (dep) {
+      var targets = this._watchee[dep] = this._watchee[dep] || [];
+      targets.push(target);
+    }.bind(this);
+
+    addTarget(main);
+    deps.forEach(addTarget);
+  },
+  build: function (env, callback) {
+    debug('calling plugin %s.build (%s)...', this.name, env);
+
+    var build = function (target, callback) {
+      this._build(target, env, true, callback);
+    }.bind(this);
+
+    async.map(Object.keys(this._targets), build, callback);
+  },
+  watch: function (callback) {
+    debug('watching %s files...', this.name);
+
+    var self = this;
+
+    var rebuildTargets = function (dep) {
+      debug('%s changed, rebuilding all targets...', dep);
+
+      timer.start();
+
+      var done = function (err) {
+        if (err) {
+          debug('rebuilding %s targets FAILED: %s.'.red, dep, err);
+          return;
+        }
+        debug('rebuilding %s targets done in %s millis.'.green, dep, timer.elapsed());
+      };
+
+      var targets = self._watchee[dep];
+      async.map(targets, function (target, callback) {
+        self._build(target, 'development', false, callback);
+      }, done);
+    };
+
+    Object.keys(this._watchee).forEach(function (dep) {
+      watchFile(dep, rebuildTargets);
+    });
+
+    callback();
+  },
+  _build: function (target, env, doCopyImages, callback) {
+    debug('building %s (%s)...', target, env);
+
+    var self = this;
+    var banner = this.banner;
+    var compress = this.compress[env];
+    var config = this._targets[target];
+    var source = readFileSync(config.main);
+    var parser = new (less.Parser)({ paths: this.paths });    
+    parser.parse(source, function (err, tree) {
+      if (err) return callback(err);
+      var css = tree.toCSS({ compress: compress });
+      // add banner
+      css = banner + css;
+      // output
+      async.parallel([
+        function (callback) {
+          target = self.target(target, env);
+          debug('writing target %s...', target);
+          writeFile(target, css, callback);
+        },
+        function (callback) {
+          if (doCopyImages && config.images) {
+            var src_dir = config.images.src_dir;
+            var target_dir = self.target(config.images.target_dir, env);
+            debug('copying images %s...', config.images.src_dir);
+            copy(src_dir, target_dir, callback);
+          } else {
+            callback();
+          }
+        }
+      ], callback);
+    });
+
+  }
+});
+
+LessPlugin.create = function (opts) {
+  return new LessPlugin(opts);
+};
+
+var CopyPlugin = function () {
+  this._targets = {};
+};
+
+t.mixin(CopyPlugin.prototype, {
+  name: 'copy',
+  add: function (target_dir, src_dir) {
+    assert(Str.is(target_dir), 'bad target_dir');
+    assert(Str.is(src_dir), 'bad src_dir');
+
+    debug('adding copy target_dir %s', target_dir);
+
+    this._targets[target_dir] = src_dir;
+  },
+  build: function (env, callback) {
+    debug('calling plugin %s.build (%s)...', this.name, env);
+
+    var build = function (target_dir, callback) {
+      src_dir = this._targets[target_dir];
+      var target_dir = target_dir.replace(/%env/, env);
+      copy(src_dir, target_dir, callback);
+    }.bind(this);
+
+    async.map(Object.keys(this._targets), build, callback);
+  },
+  watch: function (callback) {
+    callback();
+  }
+});
+
+CopyPlugin.create = function (opts) {
+  return new CopyPlugin(opts);
+};
+
+App.prototype.plugins = {
+  js: JsPlugin.create,
+  less: LessPlugin.create,
+  copy: CopyPlugin.create
+};
+
+//
+// utils
+//
+
+var print = console.log.bind(console);
+
+var timer = {
+  start: function () {
+    this.tick = +new Date;
+  },
+  elapsed: function () {
+    var now = +new Date;
+    return now - this.tick;
+  }
+};
+
+function readFileSync (path) {
+  return fs.readFileSync(path, 'utf8');
+}
+
+function writeFile (path, data, callback) {
+  fs.outputFile(path, data, callback);
+}
+
+function watchFile (path, callback) {
+  fs.watchFile(path, { persistent: true, interval: 100 }, function (curr, prev) {
+    if (curr.mtime !== prev.mtime) {
+      callback(path);
+    }
+  });
+}
+
+function uglify(src) {
+  try {
+    return uglifyJs.minify(src, {fromString: true}).code;
+  } catch (e) {
+    return null;
+  } 
+}
+
+function copy (src, target, callback) {
+  fs.ensureDir(target, function (err) {
+    if (err) return callback(err);
+    fs.copy(src, target, callback);
+  });
+}
+
+

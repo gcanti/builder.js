@@ -18,80 +18,98 @@ deplo is a tiny build system aimed to be fast even on older machines.
 
 ## Usage
 
-    var Deplo = require('deplo');
-    var builder = new Deplo();
-
-    // global options
-    builder.opts = {
-        target: 'build/',
-        src: 'src/',
-        banner: '/* MIT License */\n',
-        compress: false,
-        less: {
-            paths: []
-        }
-    };
-
-    // build a js file
-    builder.js({
-        target: 'js/app.js',
-        deps: [
-            'js/json2.js',
-            'js/app.js'
-        ]
+    var app = require('deplo')({
+      target_dir: 'build/' // required by clean()
     });
 
-    // build a css file
-    builder.less({
-        target: 'css/app.css',
-        main: 'less/app.less',
-        paths: [],
-        images: {
-            target: 'css/images',
-            src: 'less/images'
-        },
-        deps: [
-            'less/dep1.less',
-            'less/dep2.less'
-        ]
+    //
+    // plugins and transformers
+    //
+
+    var js = app.plugins.js;
+    var less = app.plugins.less;
+    var jsx = require('react-tools').transform;
+
+    //
+    // configure
+    //
+
+    app.use(js({
+      target_dir: 'build/%env/js/',
+      src_dir: 'src/js/',
+      banner: '/* MIT License */\n',
+      // hash env -> bool
+      compress: {
+        production: true 
+      },
+      transformers: {
+        'HelloMessage.jsx': [jsx]
+      }
+    }));
+
+    app.use(less({
+      target_dir: 'build/%env/css/',
+      src_dir: 'src/less/',
+      banner: '/* MIT License */\n',
+      // optional paths required by less parser
+      paths: ['src/less/'],
+      // hash env -> bool
+      compress: {               
+        production: true
+      }
+    }));
+
+    //
+    // apps
+    //
+
+    // app1
+    app.js('app1.js', [
+        'dep1.js',
+        'app1.js'
+    ]);
+
+    // app2
+    app.js('app2.js', [
+        'HelloMessage.jsx', // jsx
+        'dep1.js',
+        'app2.js'
+    ]);
+
+    // less
+    app.less('app.css', {
+      main: 'app.less',
+      images: {
+        target_dir: 'images',
+        src_dir: 'images'
+      },
+      deps: [
+        'dep1.less'
+      ]
     });
 
-    // build a jsx file
-    builder.use(require('react-tools').transform, ['jsx/HelloMessage.jsx']);
-
-    builder.js({
-        target: 'js/HelloMessage.js',
-        deps: [
-            'jsx/HelloMessage.jsx'
-        ]
-    });    
-
-    // start
-    builder.clean()
-    builder.build()
-    builder.watch();
+    // run
+    app.build('development', function (err) {
+      if (err) throw err;
+      app.watch();
+    });
 
 ## Api
 
 ### options
 
-- target: target dir
-- src: src dir
-- banner: optional banner placed on top of the files
-- compress: if `true` minify targets
-- less.paths: optional paths needed by less compiler
+- `target dir`: required
 
-### builder.use(transformer, paths)
+### builder.use(plugin)
 
-Use function `transformer(src) -> src` to transform the sources of files listed by `paths`.
+### builder.build(env, callback)
 
-### builder.clean([dir])
+- `env`: list of env separated by ','
 
-Removes all files in directory `dir`. Useful for initialize the building process. Default value for `dir` is `opts.target`.
+Example
 
-### builder.build()
-
-Build all.
+    // build development AND production
+    app.build('development,production', function (err) {});
 
 ### builder.watch()
 
@@ -101,7 +119,7 @@ Watch filesystem and rebuild on files changes.
 
 Run
 
-    node examples/build.js
+    node examples/deploFile.js
 
 ## Copyright & License
 

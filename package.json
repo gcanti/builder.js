@@ -1,6 +1,6 @@
 {
   "name": "deplo",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Mini Node.js build system for browser apps.",
   "main": "index.js",
   "scripts": {
@@ -17,8 +17,15 @@
   },
   "homepage": "https://github.com/gcanti/deplo",
   "dependencies": {
+    "colors": "*",
+    "debug": "*",
+    "async": "*",
+    "fs-extra": "*",
     "less": "*",
     "uglify-js": "*",
+    "tcomb": "*"
+  },
+  "devDependencies": {
     "react-tools": "*"
   },
   "tags": [ 
