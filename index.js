@@ -129,15 +129,15 @@ t.mixin(JsPlugin.prototype, {
 
     debug('adding js target %s', target);
 
-    deps = deps.map(this.src.bind(this));
+    deps = deps.map(this.src, this);
     this._targets[target] = deps;
 
     var addTarget = function (dep) {
       var targets = this._watchee[dep] = this._watchee[dep] || [];
       targets.push(target);
-    }.bind(this);
+    };
 
-    deps.forEach(addTarget);
+    deps.forEach(addTarget, this);
   },
   build: function (env, callback) {
     debug('calling plugin %s.build (%s)...', this.name, env);
@@ -282,7 +282,7 @@ t.mixin(LessPlugin.prototype, {
     debug('adding less target %s', target);
 
     var main = this.src(config.main);
-    var deps = config.deps.map(this.src.bind(this));
+    var deps = config.deps.map(this.src, this);
     var images = config.images;
     if (images) {
       images = {
