@@ -1,6 +1,6 @@
 {
   "name": "deplo",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Mini Node.js build system for browser apps.",
   "main": "index.js",
   "scripts": {

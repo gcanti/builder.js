@@ -222,7 +222,7 @@ t.mixin(JsPlugin.prototype, {
         source: source
       };
       debug('%s file cached.', path);
-      this._readFromCache(path, compress, callback);
+      this._readFromCache(path, env, callback);
     }
   },
   _build: function (target, env, callback) {
