@@ -1,7 +1,7 @@
 {
   "name": "deplo",
   "version": "0.0.6",
-  "description": "Mini Node.js build system for browser apps.",
+  "description": "Mini Node.js build system for my legacy apps",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
