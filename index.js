@@ -119,9 +119,9 @@ var JsPlugin = function (opts) {
   this._cache = {};
 };
 
-t.mixin(JsPlugin.prototype, DirMixin.prototype);
+t.util.mixin(JsPlugin.prototype, DirMixin.prototype);
 
-t.mixin(JsPlugin.prototype, {
+t.util.mixin(JsPlugin.prototype, {
   name: 'js',
   add: function (target, deps) {
     assert(Str.is(target), 'bad target');
