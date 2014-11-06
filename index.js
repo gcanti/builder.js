@@ -265,9 +265,9 @@ var LessPlugin = function (opts) {
   this._watchee = {};
 };
 
-t.mixin(LessPlugin.prototype, DirMixin.prototype);
+t.util.mixin(LessPlugin.prototype, DirMixin.prototype);
 
-t.mixin(LessPlugin.prototype, {
+t.util.mixin(LessPlugin.prototype, {
   name: 'less',
   add: function (target, config) {
     assert(Str.is(target), 'bad target');
@@ -389,7 +389,7 @@ var CopyPlugin = function () {
   this._targets = {};
 };
 
-t.mixin(CopyPlugin.prototype, {
+t.util.mixin(CopyPlugin.prototype, {
   name: 'copy',
   add: function (target_dir, src_dir) {
     assert(Str.is(target_dir), 'bad target_dir');

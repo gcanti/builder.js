@@ -1,6 +1,6 @@
 {
   "name": "deplo",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Mini Node.js build system for my legacy apps",
   "main": "index.js",
   "scripts": {
