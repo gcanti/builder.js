@@ -1,4 +1,3 @@
-var assert = require('assert');
 var colors = require('colors');
 var debug = require('debug')('deplo');
 var async = require('async');
@@ -64,19 +63,18 @@ App.prototype.build = function(env, callback) {
   timer.start();
 
   env = env.split(',');
-  
+
   var done = function (err) {
     if (err) {
-      print('BUILD FAILED: %s.'.red, err);
+      print('[TASK FAILED] BUILD FAILED: %s.'.red, err);
       return callback(err);
     }
-    print('BUILD DONE in %s millis.'.green, timer.elapsed()); 
+    print('[TASK SUCCEDED] BUILD DONE in %s millis.'.green, timer.elapsed());
     callback();
   };
-  
+
   this.clean();
   async.map(env, function (env, callback) {
-    print('build() called with %s env...', env);
     async.map(this._plugins, function (plugin, callback) {
       plugin.build(env, callback);
     }, callback);
@@ -85,7 +83,7 @@ App.prototype.build = function(env, callback) {
 
 App.prototype.watch = function() {
   var done = function () {
-    print('Watching all files done. Waiting for changes...');
+    print('[INFO] Watching all files for changes...'.green);
   };
 
   var watch = function (plugin, callback) {
@@ -233,7 +231,7 @@ t.util.mixin(JsPlugin.prototype, {
     var read = function (dep, callback) {
       this._readFromCache(dep, env, callback);
     }.bind(this);
-    
+
     var write = function (err, deps) {
       if (err) return callback(err);
       var js = deps.join('\n');
@@ -352,7 +350,7 @@ t.util.mixin(LessPlugin.prototype, {
     var compress = this.compress[env];
     var config = this._targets[target];
     var source = readFileSync(config.main);
-    var parser = new (less.Parser)({ paths: this.paths });    
+    var parser = new (less.Parser)({ paths: this.paths });
     parser.parse(source, function (err, tree) {
       if (err) return callback(err);
       var css = tree.toCSS({ compress: compress });
@@ -462,7 +460,7 @@ function uglify(src) {
     return uglifyJs.minify(src, {fromString: true}).code;
   } catch (e) {
     return null;
-  } 
+  }
 }
 
 function copy (src, target, callback) {

@@ -1,6 +1,6 @@
 {
   "name": "deplo",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Mini Node.js build system for my legacy apps",
   "main": "index.js",
   "scripts": {
@@ -17,18 +17,17 @@
   },
   "homepage": "https://github.com/gcanti/deplo",
   "dependencies": {
-    "colors": "*",
-    "debug": "*",
-    "async": "*",
-    "fs-extra": "*",
-    "less": "*",
-    "uglify-js": "*",
-    "tcomb": "^0.3.1"
+    "colors": "1.1.2",
+    "debug": "2.2.0",
+    "async": "0.9.0",
+    "fs-extra": "0.11.0",
+    "less": "1.7.4",
+    "uglify-js": "2.4.15",
+    "tcomb": "0.0.12"
   },
   "devDependencies": {
-    "react-tools": "*"
   },
-  "tags": [ 
+  "tags": [
     "build",
     "system",
     "make",
