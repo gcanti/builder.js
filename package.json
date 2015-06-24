@@ -1,6 +1,6 @@
 {
   "name": "deplo",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Mini Node.js build system for my legacy apps",
   "main": "index.js",
   "scripts": {
@@ -23,7 +23,7 @@
     "fs-extra": "0.11.0",
     "less": "1.7.4",
     "uglify-js": "2.4.15",
-    "tcomb": "0.0.12"
+    "tcomb": "0.3.6"
   },
   "devDependencies": {
   },
